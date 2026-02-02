@@ -59,3 +59,83 @@ def test_get_df(mocker):
 def test_error_http_path(url):
     with pytest.raises(DatabricksClientException):
         DatabricksClient(URL(url))
+
+
+class TestQueryComments:
+    """Tests for query comment functionality."""
+
+    def test_build_comment_with_multiple_annotations(self):
+        url = "databricks+thrift://token@host.databricks.com?HTTPPath=/sql/1.0/endpoints/123"
+        client = DatabricksClient(
+            URL(url), query_annotations={"app_name": "JupyterHub", "user": "john"}
+        )
+        comment = client._build_query_comment()
+        assert "app_name='JupyterHub'" in comment
+        assert "user='john'" in comment
+
+    def test_build_comment_with_single_annotation(self):
+        url = "databricks+thrift://token@host.databricks.com?HTTPPath=/sql/1.0/endpoints/123"
+        client = DatabricksClient(URL(url), query_annotations={"app_name": "JupyterHub"})
+        comment = client._build_query_comment()
+        assert comment == "/* app_name='JupyterHub' */\n"
+
+    def test_build_comment_no_annotations(self):
+        url = "databricks+thrift://token@host.databricks.com?HTTPPath=/sql/1.0/endpoints/123"
+        client = DatabricksClient(URL(url))
+        comment = client._build_query_comment()
+        assert comment == ""
+
+    def test_build_comment_escapes_single_quotes(self):
+        url = "databricks+thrift://token@host.databricks.com?HTTPPath=/sql/1.0/endpoints/123"
+        client = DatabricksClient(
+            URL(url), query_annotations={"app_name": "john's App", "user": "O'Reilly"}
+        )
+        comment = client._build_query_comment()
+        assert "app_name='john''s App'" in comment
+        assert "user='O''Reilly'" in comment
+
+    def test_prepend_comment_with_annotations(self):
+        url = "databricks+thrift://token@host.databricks.com?HTTPPath=/sql/1.0/endpoints/123"
+        client = DatabricksClient(URL(url), query_annotations={"app_name": "JupyterHub"})
+        query = "SELECT * FROM table"
+        result = client._prepend_comment(query)
+        assert result.startswith("/* app_name='JupyterHub' */\n")
+        assert "SELECT * FROM table" in result
+
+    def test_prepend_comment_without_annotations(self):
+        url = "databricks+thrift://token@host.databricks.com?HTTPPath=/sql/1.0/endpoints/123"
+        client = DatabricksClient(URL(url))
+        query = "SELECT * FROM table"
+        result = client._prepend_comment(query)
+        assert result == query
+
+    def test_query_prepends_comment(self, mocker):
+        url = "databricks+thrift://token@host.databricks.com?HTTPPath=/sql/1.0/endpoints/123"
+        client = DatabricksClient(URL(url), query_annotations={"app_name": "TestApp"})
+
+        # Mock cursor
+        mock_cursor = mocker.MagicMock()
+        mock_cursor.fetchall.return_value = [(1,)]
+        client.cursor = mock_cursor
+
+        client.query("SELECT 1")
+
+        # Verify execute was called with prepended comment
+        call_args = mock_cursor.execute.call_args[0][0]
+        assert call_args.startswith("/* app_name='TestApp' */\n")
+        assert "SELECT 1" in call_args
+
+    def test_execute_prepends_comment(self, mocker):
+        url = "databricks+thrift://token@host.databricks.com?HTTPPath=/sql/1.0/endpoints/123"
+        client = DatabricksClient(URL(url), query_annotations={"app_name": "TestApp"})
+
+        # Mock cursor
+        mock_cursor = mocker.MagicMock()
+        client.cursor = mock_cursor
+
+        client.execute("CREATE TABLE foo (id INT)")
+
+        # Verify execute was called with prepended comment
+        call_args = mock_cursor.execute.call_args[0][0]
+        assert call_args.startswith("/* app_name='TestApp' */\n")
+        assert "CREATE TABLE foo" in call_args
