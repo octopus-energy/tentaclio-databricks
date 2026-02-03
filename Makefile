@@ -50,7 +50,7 @@ tests: ## Run all tests
 
 # Run specific test file or test class
 # Usage: make test TEST="logging/test_chat_logger.py"
-#        make test TEST="logging/test_chat_logger.py::TestChatLoggerConnection"
+#        make test TEST="<name_of_test_function>"
 test: ## Run a specific test expression (requires TEST=...)
 	@if [ -z "$(TEST)" ]; then \
 		echo "Error: TEST parameter is required. Usage: make test TEST='test_function_name'"; \
