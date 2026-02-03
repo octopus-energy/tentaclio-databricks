@@ -37,14 +37,12 @@ class DatabricksClient:
         self.use_arrow = use_arrow
 
     def __enter__(self):
-        # Build connection kwargs
         conn_kwargs = {
             "server_hostname": self.server_hostname,
             "http_path": self.http_path,
             "access_token": self.access_token,
         }
 
-        # Add Arrow support if enabled
         if self.use_arrow:
             conn_kwargs.update(
                 {
