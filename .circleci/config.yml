@@ -83,7 +83,7 @@ jobs:
       - update_virtualenv
       - run:
           name: Run Python unit tests
-          command: make test
+          command: make tests
 
   release:
     executor: standard
@@ -134,5 +134,4 @@ workflows:
               only: /[0-9]+(\.[0-9]+)*(-alpha\.[0-9]+)?/
             branches:
               ignore: /.*/
-          context:
-            TENTACLIO
+          context: TENTACLIO
