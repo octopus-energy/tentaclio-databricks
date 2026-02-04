@@ -1,6 +1,8 @@
 import pandas as pd
 import pytest
 from tentaclio import URL
+from decimal import Decimal
+from datetime import date, datetime
 
 from tentaclio_databricks.clients.databricks_client import (
     DatabricksClient,
@@ -229,7 +231,28 @@ class TestDatabricksClient:
         DataFrames with the same values, columns, and dtypes.
         """
 
-        expected = pd.DataFrame({"id": pd.Series([1, 2, 3], dtype="int64")})
+        expected = pd.DataFrame(
+            {
+                "id": pd.Series([1, 2, 3], dtype="int64"),
+                "score": pd.Series([1.5, 2.5, 3.5], dtype="float64"),
+                "flag": pd.Series([True, False, True], dtype="bool"),
+                "event_time": pd.Series(
+                    [
+                        pd.Timestamp("2024-01-01 00:00:00"),
+                        pd.Timestamp("2024-01-02 00:00:00"),
+                        pd.Timestamp("2024-01-03 00:00:00"),
+                    ],
+                    dtype="datetime64[ns]",
+                ),
+                "note": pd.Series(["a", "b", "c"], dtype="object"),
+            }
+        )
+        rows = [
+            (1, 1.5, True, pd.Timestamp("2024-01-01 00:00:00"), "a"),
+            (2, 2.5, False, pd.Timestamp("2024-01-02 00:00:00"), "b"),
+            (3, 3.5, True, pd.Timestamp("2024-01-03 00:00:00"), "c"),
+        ]
+        columns = ["id", "score", "flag", "event_time", "note"]
 
         # -------------------------
         # Arrow native path
@@ -255,8 +278,8 @@ class TestDatabricksClient:
         mocked_cursor_fallback.fetchall_arrow.side_effect = AttributeError(
             "fetchall_arrow not available"
         )
-        mocked_cursor_fallback.fetchall.return_value = [(1,), (2,), (3,)]
-        mocked_cursor_fallback.description = [("id", "int", None)]
+        mocked_cursor_fallback.fetchall.return_value = rows
+        mocked_cursor_fallback.description = [(name, None, None) for name in columns]
         client_arrow_fallback.cursor = mocked_cursor_fallback
 
         df_arrow_fallback = client_arrow_fallback.get_df("SELECT * FROM foo")
@@ -268,8 +291,8 @@ class TestDatabricksClient:
         client_non_arrow.__enter__ = lambda _: client_non_arrow  # type: ignore
 
         mocked_cursor_non_arrow = mocker.MagicMock()
-        mocked_cursor_non_arrow.fetchall.return_value = [(1,), (2,), (3,)]
-        mocked_cursor_non_arrow.description = [("id", "int", None)]
+        mocked_cursor_non_arrow.fetchall.return_value = rows
+        mocked_cursor_non_arrow.description = [(name, None, None) for name in columns]
         client_non_arrow.cursor = mocked_cursor_non_arrow
 
         df_non_arrow = client_non_arrow.get_df("SELECT * FROM foo")
@@ -291,6 +314,353 @@ class TestDatabricksClient:
         # -------------------------
         # Assertions: columns
         # -------------------------
-        assert list(df_arrow.columns) == ["id"]
-        assert list(df_arrow_fallback.columns) == ["id"]
-        assert list(df_non_arrow.columns) == ["id"]
+        assert list(df_arrow.columns) == columns
+        assert list(df_arrow_fallback.columns) == columns
+        assert list(df_non_arrow.columns) == columns
+
+    def test_comprehensive_types_arrow_vs_legacy(self, mocker):
+        """
+        Test comprehensive data type coverage including:
+        - Date types
+        - Decimal types with precision
+        - Binary data
+        - NULL values
+        - Array/List types
+        - Map/Dictionary types
+        - Struct/Nested types
+        - Large integers (BIGINT)
+        - Small integers (TINYINT, SMALLINT)
+        """
+
+        expected = pd.DataFrame(
+            {
+                "bigint_col": pd.Series(
+                    [9223372036854775807, -9223372036854775808, 0], dtype="int64"
+                ),
+                "int_col": pd.Series([2147483647, -2147483648, 0], dtype="int64"),
+                "smallint_col": pd.Series([32767, -32768, 0], dtype="int64"),
+                "tinyint_col": pd.Series([127, -128, 0], dtype="int64"),
+                "double_col": pd.Series(
+                    [1.7976931348623157e308, 2.2250738585072014e-308, 0.0], dtype="float64"
+                ),
+                "float_col": pd.Series([3.4028235e38, 1.1754944e-38, 0.0], dtype="float64"),
+                "decimal_col": pd.Series(
+                    [Decimal("999.99"), Decimal("0.01"), Decimal("0.00")], dtype="object"
+                ),
+                "string_col": pd.Series(["hello", "world", ""], dtype="object"),
+                "boolean_col": pd.Series([True, False, None], dtype="object"),
+                "date_col": pd.Series(
+                    [date(2024, 1, 1), date(2024, 12, 31), date(2000, 1, 1)], dtype="object"
+                ),
+                "timestamp_col": pd.Series(
+                    [
+                        datetime(2024, 1, 1, 12, 30, 45, 123456),
+                        datetime(2024, 12, 31, 23, 59, 59, 999999),
+                        datetime(2000, 1, 1, 0, 0, 0, 0),
+                    ],
+                    dtype="datetime64[ns]",
+                ),
+                "binary_col": pd.Series([b"binary_data", b"\x00\x01\x02", b""], dtype="object"),
+                "array_col": pd.Series([[1, 2, 3], [4, 5], []], dtype="object"),
+                "map_col": pd.Series(
+                    [{"key1": "val1", "key2": "val2"}, {"a": "b"}, {}], dtype="object"
+                ),
+                "struct_col": pd.Series(
+                    [
+                        {"field1": 1, "field2": "a"},
+                        {"field1": 2, "field2": "b"},
+                        {"field1": 3, "field2": "c"},
+                    ],
+                    dtype="object",
+                ),
+                "null_string_col": pd.Series([None, "not null", None], dtype="object"),
+                "null_int_col": pd.Series([None, 42, None], dtype="object"),
+            }
+        )
+
+        rows = [
+            (
+                9223372036854775807,
+                2147483647,
+                32767,
+                127,
+                1.7976931348623157e308,
+                3.4028235e38,
+                Decimal("999.99"),
+                "hello",
+                True,
+                date(2024, 1, 1),
+                datetime(2024, 1, 1, 12, 30, 45, 123456),
+                b"binary_data",
+                [1, 2, 3],
+                {"key1": "val1", "key2": "val2"},
+                {"field1": 1, "field2": "a"},
+                None,
+                None,
+            ),
+            (
+                -9223372036854775808,
+                -2147483648,
+                -32768,
+                -128,
+                2.2250738585072014e-308,
+                1.1754944e-38,
+                Decimal("0.01"),
+                "world",
+                False,
+                date(2024, 12, 31),
+                datetime(2024, 12, 31, 23, 59, 59, 999999),
+                b"\x00\x01\x02",
+                [4, 5],
+                {"a": "b"},
+                {"field1": 2, "field2": "b"},
+                "not null",
+                42,
+            ),
+            (
+                0,
+                0,
+                0,
+                0,
+                0.0,
+                0.0,
+                Decimal("0.00"),
+                "",
+                None,
+                date(2000, 1, 1),
+                datetime(2000, 1, 1, 0, 0, 0, 0),
+                b"",
+                [],
+                {},
+                {"field1": 3, "field2": "c"},
+                None,
+                None,
+            ),
+        ]
+
+        columns = [
+            "bigint_col",
+            "int_col",
+            "smallint_col",
+            "tinyint_col",
+            "double_col",
+            "float_col",
+            "decimal_col",
+            "string_col",
+            "boolean_col",
+            "date_col",
+            "timestamp_col",
+            "binary_col",
+            "array_col",
+            "map_col",
+            "struct_col",
+            "null_string_col",
+            "null_int_col",
+        ]
+
+        # -------------------------
+        # Arrow native path
+        # -------------------------
+        client_arrow = self.client
+        client_arrow.__enter__ = lambda _: client_arrow  # type: ignore
+
+        mocked_cursor_arrow = mocker.MagicMock()
+        mocked_table = mocker.MagicMock()
+        mocked_table.to_pandas.return_value = expected.copy()
+        mocked_cursor_arrow.fetchall_arrow.return_value = mocked_table
+        client_arrow.cursor = mocked_cursor_arrow
+
+        df_arrow = client_arrow.get_df("SELECT * FROM comprehensive_types")
+        # -------------------------
+        # Non-arrow path
+        # -------------------------
+        client_non_arrow = DatabricksClient(URL(self.databricks_test_url), use_arrow=False)
+        client_non_arrow.__enter__ = lambda _: client_non_arrow  # type: ignore
+
+        mocked_cursor_non_arrow = mocker.MagicMock()
+        mocked_cursor_non_arrow.fetchall.return_value = rows
+        mocked_cursor_non_arrow.description = [(name, None, None) for name in columns]
+        client_non_arrow.cursor = mocked_cursor_non_arrow
+
+        df_non_arrow = client_non_arrow.get_df("SELECT * FROM comprehensive_types")
+
+        # -------------------------
+        # Assertions: shape
+        # -------------------------
+        assert df_arrow.shape == expected.shape
+        assert df_non_arrow.shape == expected.shape
+
+        # -------------------------
+        # Assertions: columns
+        # -------------------------
+        assert list(df_arrow.columns) == columns
+        assert list(df_non_arrow.columns) == columns
+
+        # -------------------------
+        # Assertions: values (column by column)
+        # -------------------------
+        for col in columns:
+            # For numeric columns, use direct equality
+            if col in [
+                "bigint_col",
+                "int_col",
+                "smallint_col",
+                "tinyint_col",
+                "double_col",
+                "float_col",
+            ]:
+                pd.testing.assert_series_equal(df_arrow[col], expected[col], check_names=True)
+                pd.testing.assert_series_equal(df_non_arrow[col], expected[col], check_names=True)
+
+            # For timestamp columns
+            elif col == "timestamp_col":
+                pd.testing.assert_series_equal(df_arrow[col], expected[col], check_names=True)
+                pd.testing.assert_series_equal(df_non_arrow[col], expected[col], check_names=True)
+
+            # For other columns, check equality element by element
+            else:
+                for idx in range(len(expected)):
+                    assert df_arrow[col].iloc[idx] == expected[col].iloc[idx] or (
+                        pd.isna(df_arrow[col].iloc[idx]) and pd.isna(expected[col].iloc[idx])
+                    )
+                    assert df_non_arrow[col].iloc[idx] == expected[col].iloc[idx] or (
+                        pd.isna(df_non_arrow[col].iloc[idx]) and pd.isna(expected[col].iloc[idx])
+                    )
+
+    def test_null_values_handling(self, mocker):
+        """
+        Test that NULL values are properly handled across all three paths
+        for various data types.
+        """
+
+        expected = pd.DataFrame(
+            {
+                "id": pd.Series([1, None, 3], dtype="object"),
+                "name": pd.Series([None, "test", None], dtype="object"),
+                "amount": pd.Series([None, 100.5, None], dtype="object"),
+                "is_active": pd.Series([True, None, False], dtype="object"),
+                "created_at": pd.Series([None, pd.Timestamp("2024-01-01"), None], dtype="object"),
+            }
+        )
+
+        rows = [
+            (1, None, None, True, None),
+            (None, "test", 100.5, None, pd.Timestamp("2024-01-01")),
+            (3, None, None, False, None),
+        ]
+
+        columns = ["id", "name", "amount", "is_active", "created_at"]
+
+        # Test Arrow path
+        client_arrow = self.client
+        client_arrow.__enter__ = lambda _: client_arrow  # type: ignore
+
+        mocked_cursor_arrow = mocker.MagicMock()
+        mocked_table = mocker.MagicMock()
+        mocked_table.to_pandas.return_value = expected.copy()
+        mocked_cursor_arrow.fetchall_arrow.return_value = mocked_table
+        client_arrow.cursor = mocked_cursor_arrow
+
+        df_arrow = client_arrow.get_df("SELECT * FROM nulls_test")
+
+        # Test fallback path
+        client_fallback = DatabricksClient(URL(self.databricks_test_url), use_arrow=True)
+        client_fallback.__enter__ = lambda _: client_fallback  # type: ignore
+
+        mocked_cursor_fallback = mocker.MagicMock()
+        mocked_cursor_fallback.fetchall_arrow.side_effect = AttributeError()
+        mocked_cursor_fallback.fetchall.return_value = rows
+        mocked_cursor_fallback.description = [(name, None, None) for name in columns]
+        client_fallback.cursor = mocked_cursor_fallback
+
+        df_fallback = client_fallback.get_df("SELECT * FROM nulls_test")
+
+        # Test non-arrow path
+        client_non_arrow = DatabricksClient(URL(self.databricks_test_url), use_arrow=False)
+        client_non_arrow.__enter__ = lambda _: client_non_arrow  # type: ignore
+
+        mocked_cursor_non_arrow = mocker.MagicMock()
+        mocked_cursor_non_arrow.fetchall.return_value = rows
+        mocked_cursor_non_arrow.description = [(name, None, None) for name in columns]
+        client_non_arrow.cursor = mocked_cursor_non_arrow
+
+        df_non_arrow = client_non_arrow.get_df("SELECT * FROM nulls_test")
+
+        # Verify NULL handling
+        for col in columns:
+            for idx in range(len(expected)):
+                expected_val = expected[col].iloc[idx]
+                arrow_val = df_arrow[col].iloc[idx]
+                fallback_val = df_fallback[col].iloc[idx]
+                non_arrow_val = df_non_arrow[col].iloc[idx]
+
+                if pd.isna(expected_val):
+                    assert pd.isna(arrow_val)
+                    assert pd.isna(fallback_val)
+                    assert pd.isna(non_arrow_val)
+                else:
+                    assert arrow_val == expected_val
+                    assert fallback_val == expected_val
+                    assert non_arrow_val == expected_val
+
+    def test_edge_case_values(self, mocker):
+        """
+        Test edge cases like very long strings, special characters,
+        unicode, empty strings, extreme numeric values.
+        """
+
+        long_string = "a" * 10000
+        unicode_string = "Hello 世界 🌍 émojis"
+        special_chars = "!@#$%^&*()_+-=[]{}|;':\",./<>?"
+
+        expected = pd.DataFrame(
+            {
+                "long_text": pd.Series([long_string, "", long_string], dtype="object"),
+                "unicode_text": pd.Series(
+                    [unicode_string, "ASCII", unicode_string], dtype="object"
+                ),
+                "special_chars": pd.Series([special_chars, "", special_chars], dtype="object"),
+                "zero": pd.Series([0, 0, 0], dtype="int64"),
+                "negative_zero": pd.Series([-0.0, 0.0, -0.0], dtype="float64"),
+                "inf": pd.Series([float("inf"), float("-inf"), 0.0], dtype="float64"),
+            }
+        )
+
+        rows = [
+            (long_string, unicode_string, special_chars, 0, -0.0, float("inf")),
+            ("", "ASCII", "", 0, 0.0, float("-inf")),
+            (long_string, unicode_string, special_chars, 0, -0.0, 0.0),
+        ]
+
+        columns = ["long_text", "unicode_text", "special_chars", "zero", "negative_zero", "inf"]
+
+        # Test all three paths
+        for use_arrow, force_fallback in [(True, False), (True, True), (False, False)]:
+            client = DatabricksClient(URL(self.databricks_test_url), use_arrow=use_arrow)
+            client.__enter__ = lambda _: client  # type: ignore
+
+            mocked_cursor = mocker.MagicMock()
+
+            if use_arrow and not force_fallback:
+                mocked_table = mocker.MagicMock()
+                mocked_table.to_pandas.return_value = expected.copy()
+                mocked_cursor.fetchall_arrow.return_value = mocked_table
+            elif use_arrow and force_fallback:
+                mocked_cursor.fetchall_arrow.side_effect = AttributeError()
+                mocked_cursor.fetchall.return_value = rows
+                mocked_cursor.description = [(name, None, None) for name in columns]
+            else:
+                mocked_cursor.fetchall.return_value = rows
+                mocked_cursor.description = [(name, None, None) for name in columns]
+
+            client.cursor = mocked_cursor
+            df = client.get_df("SELECT * FROM edge_cases")
+
+            # Verify the DataFrame matches expected
+            assert df.shape == expected.shape
+            assert list(df.columns) == columns
+
+            # Check string columns
+            for col in ["long_text", "unicode_text", "special_chars"]:
+                for idx in range(len(expected)):
+                    assert df[col].iloc[idx] == expected[col].iloc[idx]
