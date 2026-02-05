@@ -60,3 +60,34 @@ All queries executed by the client will have prepended comments:
 /* app_name='JupyterHub', user='john', pipeline_id='456' */
 SELECT * FROM table
 ```
+
+## Arrow Usage
+
+`DatabricksClient` defaults to Arrow for faster data transfer and more faithful type handling.
+
+### Example: Arrow enabled (default)
+```python
+from tentaclio import URL
+from tentaclio_databricks.clients.databricks_client import DatabricksClient
+
+url = URL("databricks+thrift://token@host.databricks.com?HTTPPath=/sql/1.0/endpoints/123")
+with DatabricksClient(url) as client:
+    df = client.get_df("SELECT * FROM sample_table")
+```
+
+When Arrow is enabled, the client configures the connection with:
+- `use_arrow_native_complex_types`
+- `use_arrow_native_decimals`
+- `use_arrow_native_timestamps`
+
+### Example: Arrow disabled (row-based fetch)
+```python
+from tentaclio import URL
+from tentaclio_databricks.clients.databricks_client import DatabricksClient
+
+url = URL("databricks+thrift://token@host.databricks.com?HTTPPath=/sql/1.0/endpoints/123")
+with DatabricksClient(url, use_arrow=False, arraysize=10000) as client:
+    df = client.get_df("SELECT * FROM sample_table")
+```
+
+When Arrow is disabled, the client falls back to `fetchall()` and uses `arraysize` for the cursor.
