@@ -18,7 +18,7 @@ class DatabricksClient:
         self,
         url: URL,
         arraysize: int = 1000000,
-        use_arrow: bool = True,
+        use_arrow: bool = False,
         query_annotations: Optional[Dict[str, str]] = None,
         **kwargs,
     ):

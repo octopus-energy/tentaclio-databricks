@@ -18,6 +18,8 @@ class TestDatabricksClient:
             "?HTTPPath=/sql/1.0/endpoints/123456789"
         )
         self.client = DatabricksClient(URL(self.databricks_test_url))
+        # Client for Arrow-specific tests
+        self.client_arrow = DatabricksClient(URL(self.databricks_test_url), use_arrow=True)
         self.expected = pd.DataFrame({"id": [1, 2, 3]})
 
     @pytest.mark.parametrize(
@@ -48,8 +50,8 @@ class TestDatabricksClient:
     def test_get_df(self, mocker):
         client = self.client
         client.__enter__ = lambda _: client  # type: ignore
-        client.query = lambda _: [1, 2, 3]  # type: ignore
         mocked_cursor = mocker.MagicMock()
+        mocked_cursor.fetchall.return_value = [(1,), (2,), (3,)]
         mocked_cursor.description = [("id", "int", None)]
         client.cursor = mocked_cursor
         df = client.get_df("foo")
@@ -146,7 +148,7 @@ class TestDatabricksClient:
 
     def test_get_df_arrow_path(self, mocker):
         """Test that Arrow path is used when enabled."""
-        client = self.client
+        client = self.client_arrow
         client.__enter__ = lambda _: client  # type: ignore
 
         mocked_cursor = mocker.MagicMock()
@@ -187,7 +189,7 @@ class TestDatabricksClient:
 
     def test_get_df_arrow_fallback_on_attribute_error(self, mocker):
         """Test that Arrow falls back to regular fetch when not available."""
-        client = self.client
+        client = self.client_arrow
         client.__enter__ = lambda _: client  # type: ignore
 
         mocked_cursor = mocker.MagicMock()
@@ -214,7 +216,7 @@ class TestDatabricksClient:
         mock_conn.cursor.return_value = mock_cursor
         mock_connect.return_value = mock_conn
 
-        client = self.client
+        client = self.client_arrow
         client.__enter__()
 
         # Verify connection was called with Arrow parameters
@@ -253,7 +255,7 @@ class TestDatabricksClient:
     def test_get_df_with_query_kwargs(self, mocker):
         """Test that query kwargs are passed through."""
         expected = pd.DataFrame({"id": [1]})
-        client = self.client
+        client = self.client_arrow
         client.__enter__ = lambda _: client  # type: ignore
 
         mocked_cursor = mocker.MagicMock()
@@ -273,7 +275,7 @@ class TestDatabricksClient:
     def test_get_df_empty_results_arrow(self, mocker):
         """Test Arrow path with empty results."""
         expected = pd.DataFrame()
-        client = self.client
+        client = self.client_arrow
         client.__enter__ = lambda _: client  # type: ignore
 
         mocked_cursor = mocker.MagicMock()
@@ -334,7 +336,7 @@ class TestDatabricksClient:
         # -------------------------
         # Arrow native path
         # -------------------------
-        client_arrow = self.client
+        client_arrow = self.client_arrow
         client_arrow.__enter__ = lambda _: client_arrow  # type: ignore
 
         mocked_cursor_arrow = mocker.MagicMock()
@@ -418,16 +420,19 @@ class TestDatabricksClient:
                 "smallint_col": pd.Series([32767, -32768, 0], dtype="int64"),
                 "tinyint_col": pd.Series([127, -128, 0], dtype="int64"),
                 "double_col": pd.Series(
-                    [1.7976931348623157e308, 2.2250738585072014e-308, 0.0], dtype="float64"
+                    [1.7976931348623157e308, 2.2250738585072014e-308, 0.0],
+                    dtype="float64",
                 ),
                 "float_col": pd.Series([3.4028235e38, 1.1754944e-38, 0.0], dtype="float64"),
                 "decimal_col": pd.Series(
-                    [Decimal("999.99"), Decimal("0.01"), Decimal("0.00")], dtype="object"
+                    [Decimal("999.99"), Decimal("0.01"), Decimal("0.00")],
+                    dtype="object",
                 ),
                 "string_col": pd.Series(["hello", "world", ""], dtype="object"),
                 "boolean_col": pd.Series([True, False, None], dtype="object"),
                 "date_col": pd.Series(
-                    [date(2024, 1, 1), date(2024, 12, 31), date(2000, 1, 1)], dtype="object"
+                    [date(2024, 1, 1), date(2024, 12, 31), date(2000, 1, 1)],
+                    dtype="object",
                 ),
                 "timestamp_col": pd.Series(
                     [
@@ -538,7 +543,7 @@ class TestDatabricksClient:
         # -------------------------
         # Arrow native path
         # -------------------------
-        client_arrow = self.client
+        client_arrow = self.client_arrow
         client_arrow.__enter__ = lambda _: client_arrow  # type: ignore
 
         mocked_cursor_arrow = mocker.MagicMock()
@@ -629,7 +634,7 @@ class TestDatabricksClient:
         columns = ["id", "name", "amount", "is_active", "created_at"]
 
         # Test Arrow path
-        client_arrow = self.client
+        client_arrow = self.client_arrow
         client_arrow.__enter__ = lambda _: client_arrow  # type: ignore
 
         mocked_cursor_arrow = mocker.MagicMock()
@@ -709,7 +714,14 @@ class TestDatabricksClient:
             (long_string, unicode_string, special_chars, 0, -0.0, 0.0),
         ]
 
-        columns = ["long_text", "unicode_text", "special_chars", "zero", "negative_zero", "inf"]
+        columns = [
+            "long_text",
+            "unicode_text",
+            "special_chars",
+            "zero",
+            "negative_zero",
+            "inf",
+        ]
 
         # Test all three paths
         for use_arrow, force_fallback in [(True, False), (True, True), (False, False)]:
