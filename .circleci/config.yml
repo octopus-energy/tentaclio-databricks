@@ -8,8 +8,12 @@ version: 2.1
 
 executors:
   standard:
+    parameters:
+      python_version:
+        type: string
+        default: "3.9"
     docker:
-      - image: cimg/python:3.9
+      - image: cimg/python:<< parameters.python_version >>
     working_directory: "~/lib"
 
 # -----------------
@@ -78,7 +82,13 @@ jobs:
           command: make lint
 
   test:
-    executor: standard
+    parameters:
+      version:
+        type: string
+        default: "3.9"
+    executor:
+      name: standard
+      python_version: << parameters.version >>
     steps:
       - checkout_source
       - update_virtualenv
@@ -123,6 +133,9 @@ workflows:
             tags:
               only: /.*/
       - test:
+          matrix:
+            parameters:
+              version: ["3.13", "3.12", "3.11", "3.10", "3.9"]
           filters:
             tags:
               only: /.*/
