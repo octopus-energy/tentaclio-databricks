@@ -18,10 +18,10 @@ class DatabricksClient:
         self,
         url: URL,
         arraysize: int = 1000000,
+        use_arrow: bool = False,
         query_annotations: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
-
         # This is a very common issue reported by the users
         if url.query is None or "HTTPPath" not in url.query:
             raise DatabricksClientException(
@@ -41,20 +41,38 @@ class DatabricksClient:
         self.http_path = url.query["HTTPPath"]
         self.access_token = url.username
         self.arraysize = arraysize
+        self.use_arrow = use_arrow
         self.query_annotations = query_annotations or {}
 
     def __enter__(self):
-        self.conn = sql.connect(
-            server_hostname=self.server_hostname,
-            http_path=self.http_path,
-            access_token=self.access_token,
-        )
-        self.cursor = self.conn.cursor(arraysize=self.arraysize)
+        conn_kwargs = {
+            "server_hostname": self.server_hostname,
+            "http_path": self.http_path,
+            "access_token": self.access_token,
+        }
+
+        if self.use_arrow:
+            conn_kwargs.update(
+                {
+                    "use_arrow_native_complex_types": True,
+                    "use_arrow_native_decimals": True,
+                    "use_arrow_native_timestamps": True,
+                }
+            )
+
+        self.conn = sql.connect(**conn_kwargs)
+
+        # Only set arraysize if not using Arrow
+        if self.use_arrow:
+            self.cursor = self.conn.cursor()
+        else:
+            self.cursor = self.conn.cursor(arraysize=self.arraysize)
+
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.conn.close()
         self.cursor.close()
+        self.conn.close()
 
     def _build_query_comment(self) -> str:
         """Build a SQL comment from query annotations.
@@ -102,7 +120,20 @@ class DatabricksClient:
 
     def get_df(self, sql_query: str, **kwargs) -> pd.DataFrame:
         """Run a raw SQL query and return a data frame."""
-        data = self.query(sql_query, **kwargs)
+        self.cursor.execute(sql_query, **kwargs)
+
+        if self.use_arrow:
+            # Default to Arrow for fast data transfer
+            try:
+                arrow_table = self.cursor.fetchall_arrow()
+                return arrow_table.to_pandas()
+            except AttributeError:
+                data = self.cursor.fetchall()
+        else:
+            # Original row-by-row method
+            data = self.cursor.fetchall()
+
+        # Build DataFrame from rows (fallback path)
         columns = (
             [col_desc[0] for col_desc in self.cursor.description]
             if self.cursor.description
