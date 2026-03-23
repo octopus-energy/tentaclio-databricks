@@ -19,9 +19,7 @@ class TestDatabricksClient:
         )
         self.client = DatabricksClient(URL(self.databricks_test_url))
         # Client for Arrow-specific tests
-        self.client_arrow = DatabricksClient(
-            URL(self.databricks_test_url), use_arrow=True
-        )
+        self.client_arrow = DatabricksClient(URL(self.databricks_test_url), use_arrow=True)
         self.expected = pd.DataFrame({"id": [1, 2, 3]})
 
     @pytest.mark.parametrize(
@@ -83,9 +81,7 @@ class TestDatabricksClient:
 
     def test_build_comment_with_single_annotation(self):
         url = "databricks+thrift://token@host.databricks.com?HTTPPath=/sql/1.0/endpoints/123"
-        client = DatabricksClient(
-            URL(url), query_annotations={"app_name": "JupyterHub"}
-        )
+        client = DatabricksClient(URL(url), query_annotations={"app_name": "JupyterHub"})
         comment = client._build_query_comment()
         assert comment == "/* app_name='JupyterHub' */\n"
 
@@ -106,9 +102,7 @@ class TestDatabricksClient:
 
     def test_prepend_comment_with_annotations(self):
         url = "databricks+thrift://token@host.databricks.com?HTTPPath=/sql/1.0/endpoints/123"
-        client = DatabricksClient(
-            URL(url), query_annotations={"app_name": "JupyterHub"}
-        )
+        client = DatabricksClient(URL(url), query_annotations={"app_name": "JupyterHub"})
         query = "SELECT * FROM table"
         result = client._prepend_comment(query)
         assert result.startswith("/* app_name='JupyterHub' */\n")
@@ -200,9 +194,7 @@ class TestDatabricksClient:
 
         mocked_cursor = mocker.MagicMock()
         # Simulate Arrow not being available
-        mocked_cursor.fetchall_arrow.side_effect = AttributeError(
-            "fetchall_arrow not found"
-        )
+        mocked_cursor.fetchall_arrow.side_effect = AttributeError("fetchall_arrow not found")
         mocked_cursor.fetchall.return_value = [(1,), (2,), (3,)]
         mocked_cursor.description = [("id", "int", None)]
         client.cursor = mocked_cursor
@@ -248,9 +240,7 @@ class TestDatabricksClient:
         mock_conn.cursor.return_value = mock_cursor
         mock_connect.return_value = mock_conn
 
-        client = DatabricksClient(
-            URL(self.databricks_test_url), use_arrow=False, arraysize=500000
-        )
+        client = DatabricksClient(URL(self.databricks_test_url), use_arrow=False, arraysize=500000)
         client.__enter__()
 
         # Verify connection was called WITHOUT Arrow parameters
@@ -360,9 +350,7 @@ class TestDatabricksClient:
         # -------------------------
         # Arrow fallback path
         # -------------------------
-        client_arrow_fallback = DatabricksClient(
-            URL(self.databricks_test_url), use_arrow=True
-        )
+        client_arrow_fallback = DatabricksClient(URL(self.databricks_test_url), use_arrow=True)
         client_arrow_fallback.__enter__ = lambda _: client_arrow_fallback  # type: ignore
 
         mocked_cursor_fallback = mocker.MagicMock()
@@ -378,9 +366,7 @@ class TestDatabricksClient:
         # -------------------------
         # Non-arrow path
         # -------------------------
-        client_non_arrow = DatabricksClient(
-            URL(self.databricks_test_url), use_arrow=False
-        )
+        client_non_arrow = DatabricksClient(URL(self.databricks_test_url), use_arrow=False)
         client_non_arrow.__enter__ = lambda _: client_non_arrow  # type: ignore
 
         mocked_cursor_non_arrow = mocker.MagicMock()
@@ -437,9 +423,7 @@ class TestDatabricksClient:
                     [1.7976931348623157e308, 2.2250738585072014e-308, 0.0],
                     dtype="float64",
                 ),
-                "float_col": pd.Series(
-                    [3.4028235e38, 1.1754944e-38, 0.0], dtype="float64"
-                ),
+                "float_col": pd.Series([3.4028235e38, 1.1754944e-38, 0.0], dtype="float64"),
                 "decimal_col": pd.Series(
                     [Decimal("999.99"), Decimal("0.01"), Decimal("0.00")],
                     dtype="object",
@@ -458,9 +442,7 @@ class TestDatabricksClient:
                     ],
                     dtype="datetime64[ns]",
                 ),
-                "binary_col": pd.Series(
-                    [b"binary_data", b"\x00\x01\x02", b""], dtype="object"
-                ),
+                "binary_col": pd.Series([b"binary_data", b"\x00\x01\x02", b""], dtype="object"),
                 "array_col": pd.Series([[1, 2, 3], [4, 5], []], dtype="object"),
                 "map_col": pd.Series(
                     [{"key1": "val1", "key2": "val2"}, {"a": "b"}, {}], dtype="object"
@@ -574,9 +556,7 @@ class TestDatabricksClient:
         # -------------------------
         # Non-arrow path
         # -------------------------
-        client_non_arrow = DatabricksClient(
-            URL(self.databricks_test_url), use_arrow=False
-        )
+        client_non_arrow = DatabricksClient(URL(self.databricks_test_url), use_arrow=False)
         client_non_arrow.__enter__ = lambda _: client_non_arrow  # type: ignore
 
         mocked_cursor_non_arrow = mocker.MagicMock()
@@ -611,32 +591,22 @@ class TestDatabricksClient:
                 "double_col",
                 "float_col",
             ]:
-                pd.testing.assert_series_equal(
-                    df_arrow[col], expected[col], check_names=True
-                )
-                pd.testing.assert_series_equal(
-                    df_non_arrow[col], expected[col], check_names=True
-                )
+                pd.testing.assert_series_equal(df_arrow[col], expected[col], check_names=True)
+                pd.testing.assert_series_equal(df_non_arrow[col], expected[col], check_names=True)
 
             # For timestamp columns
             elif col == "timestamp_col":
-                pd.testing.assert_series_equal(
-                    df_arrow[col], expected[col], check_names=True
-                )
-                pd.testing.assert_series_equal(
-                    df_non_arrow[col], expected[col], check_names=True
-                )
+                pd.testing.assert_series_equal(df_arrow[col], expected[col], check_names=True)
+                pd.testing.assert_series_equal(df_non_arrow[col], expected[col], check_names=True)
 
             # For other columns, check equality element by element
             else:
                 for idx in range(len(expected)):
                     assert df_arrow[col].iloc[idx] == expected[col].iloc[idx] or (
-                        pd.isna(df_arrow[col].iloc[idx])
-                        and pd.isna(expected[col].iloc[idx])
+                        pd.isna(df_arrow[col].iloc[idx]) and pd.isna(expected[col].iloc[idx])
                     )
                     assert df_non_arrow[col].iloc[idx] == expected[col].iloc[idx] or (
-                        pd.isna(df_non_arrow[col].iloc[idx])
-                        and pd.isna(expected[col].iloc[idx])
+                        pd.isna(df_non_arrow[col].iloc[idx]) and pd.isna(expected[col].iloc[idx])
                     )
 
     def test_null_values_handling(self, mocker):
@@ -651,9 +621,7 @@ class TestDatabricksClient:
                 "name": pd.Series([None, "test", None], dtype="object"),
                 "amount": pd.Series([None, 100.5, None], dtype="object"),
                 "is_active": pd.Series([True, None, False], dtype="object"),
-                "created_at": pd.Series(
-                    [None, pd.Timestamp("2024-01-01"), None], dtype="object"
-                ),
+                "created_at": pd.Series([None, pd.Timestamp("2024-01-01"), None], dtype="object"),
             }
         )
 
@@ -678,9 +646,7 @@ class TestDatabricksClient:
         df_arrow = client_arrow.get_df("SELECT * FROM nulls_test")
 
         # Test fallback path
-        client_fallback = DatabricksClient(
-            URL(self.databricks_test_url), use_arrow=True
-        )
+        client_fallback = DatabricksClient(URL(self.databricks_test_url), use_arrow=True)
         client_fallback.__enter__ = lambda _: client_fallback  # type: ignore
 
         mocked_cursor_fallback = mocker.MagicMock()
@@ -692,9 +658,7 @@ class TestDatabricksClient:
         df_fallback = client_fallback.get_df("SELECT * FROM nulls_test")
 
         # Test non-arrow path
-        client_non_arrow = DatabricksClient(
-            URL(self.databricks_test_url), use_arrow=False
-        )
+        client_non_arrow = DatabricksClient(URL(self.databricks_test_url), use_arrow=False)
         client_non_arrow.__enter__ = lambda _: client_non_arrow  # type: ignore
 
         mocked_cursor_non_arrow = mocker.MagicMock()
@@ -737,9 +701,7 @@ class TestDatabricksClient:
                 "unicode_text": pd.Series(
                     [unicode_string, "ASCII", unicode_string], dtype="object"
                 ),
-                "special_chars": pd.Series(
-                    [special_chars, "", special_chars], dtype="object"
-                ),
+                "special_chars": pd.Series([special_chars, "", special_chars], dtype="object"),
                 "zero": pd.Series([0, 0, 0], dtype="int64"),
                 "negative_zero": pd.Series([-0.0, 0.0, -0.0], dtype="float64"),
                 "inf": pd.Series([float("inf"), float("-inf"), 0.0], dtype="float64"),
@@ -763,9 +725,7 @@ class TestDatabricksClient:
 
         # Test all three paths
         for use_arrow, force_fallback in [(True, False), (True, True), (False, False)]:
-            client = DatabricksClient(
-                URL(self.databricks_test_url), use_arrow=use_arrow
-            )
+            client = DatabricksClient(URL(self.databricks_test_url), use_arrow=use_arrow)
             client.__enter__ = lambda _: client  # type: ignore
 
             mocked_cursor = mocker.MagicMock()
