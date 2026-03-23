@@ -9,7 +9,7 @@ version: 2.1
 executors:
   standard:
     docker:
-      - image: circleci/python:3.9
+      - image: cimg/python:3.9
     working_directory: "~/lib"
 
 # -----------------
