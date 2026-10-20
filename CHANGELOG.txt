@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-22
+### Changed
+  - Bump the minimum supported Python from 3.10 (EOL) to 3.11.
+  - Limit supported Python versions to below 3.15 until support for pandas>=3 can be added.
+### Fixed
+  - Raise the `[build-system]` floor from `setuptools>=61.0` to `setuptools>=77`. The
+    `license = "MIT"` SPDX string (PEP 639) needs setuptools 77+, so building the sdist with an
+    older setuptools and build isolation off failed with an opaque `project.license must be valid
+    exactly by one definition` error.
+  - Fix dev dependencies not defined within `[dependency-groups]` block in `pyproject.toml`.
+  - Lint changes to pass latest versions of flake8 and mypy.
+
 ## [2.1.0] - 2026-07-30
 ### Changed
   - Bump the minimum supported Python from 3.9 (EOL) to 3.10. CircleCI executors bumped from

@@ -60,9 +60,9 @@ class DatabricksClient:
         if self.use_arrow:
             conn_kwargs.update(
                 {
-                    "use_arrow_native_complex_types": True,
-                    "use_arrow_native_decimals": True,
-                    "use_arrow_native_timestamps": True,
+                    "use_arrow_native_complex_types": True,  # type: ignore
+                    "use_arrow_native_decimals": True,  # type: ignore
+                    "use_arrow_native_timestamps": True,  # type: ignore
                 }
             )
 

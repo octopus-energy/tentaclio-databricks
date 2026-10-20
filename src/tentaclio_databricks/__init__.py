@@ -13,4 +13,4 @@ except PackageNotFoundError:
     __version__ = "0.0.0"
 
 # Add DB registry
-DB_REGISTRY.register("databricks+thrift", DatabricksClient)  # type: ignore
+DB_REGISTRY.register("databricks+thrift", DatabricksClient)
