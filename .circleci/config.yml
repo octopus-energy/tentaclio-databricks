@@ -10,10 +10,13 @@ executors:
   standard:
     parameters:
       python-version:
-        default: "3.11"
+        default: &default-python "3.13.17"
+        type: string
+      sha256-digest:
+        default: &default-sha256-digest "sha256:2b43e59737792e1d77c4dfb413525e5476b7b04954f9f73652032ee3af5a3d43"  # cimg/python:3.13.17
         type: string
     docker:
-      - image: cimg/python:<< parameters.python-version >>
+      - image: cimg/python:<< parameters.python-version >>@<< parameters.sha256-digest >>
 
 
 # -----------------
@@ -57,7 +60,7 @@ commands:
       - configure_github
       - run:
           name: Install Python packages
-          command: make sync
+          command: uv sync --all-extras --locked
       - save_cache:
           key: virtualenv-<< parameters.python-version >>-{{ .Environment.CACHE_VERSION }}-{{ .Branch }}-{{ checksum "uv.lock" }}
           paths:
@@ -68,11 +71,15 @@ jobs:
   lint:
     parameters:
       python-version:
-        default: "3.11"
+        default: *default-python
+        type: string
+      sha256-digest:
+        default: *default-sha256-digest
         type: string
     executor:
       name: standard
       python-version: << parameters.python-version >>
+      sha256-digest: << parameters.sha256-digest >>
     steps:
       - checkout_source
       - update_virtualenv:
@@ -85,9 +92,12 @@ jobs:
     parameters:
       python-version:
         type: string
+      sha256-digest:
+        type: string
     executor:
       name: standard
       python-version: << parameters.python-version >>
+      sha256-digest: << parameters.sha256-digest >>
     steps:
       - checkout_source
       - update_virtualenv:
@@ -107,9 +117,30 @@ workflows:
             tags:
               only: /.*/
       - tests:
-          matrix:
-            parameters:
-              python-version: ["3.11", "3.12", "3.13", "3.14"]
+          name: tests-3.11
+          python-version: &python311 "3.11.17"
+          sha256-digest: &sha256-python311 "sha256:5ce8a1b7b8a325beb7a8041d5573d27f5bdc292d0ff5bf48c49a8cc5d9dd5bdd"  # cimg/python:3.11.17
+          filters:
+            tags:
+              only: /.*/
+      - tests:
+          name: tests-3.12
+          python-version: &python312 "3.12.15"
+          sha256-digest: &sha256-python312 "sha256:e2a7e6b86e8262f313fd4832c68a61bf60084403d87009dac12d342efbfffb61"  # cimg/python:3.12.15
+          filters:
+            tags:
+              only: /.*/
+      - tests:
+          name: tests-3.13
+          python-version: &python313 "3.13.17"
+          sha256-digest: &sha256-python313 "sha256:2b43e59737792e1d77c4dfb413525e5476b7b04954f9f73652032ee3af5a3d43"  # cimg/python:3.13.17
+          filters:
+            tags:
+              only: /.*/
+      - tests:
+          name: tests-3.14
+          python-version: &python314 "3.14.9"
+          sha256-digest: &sha256-python314 "sha256:55b4b277ea43a3cecad39964aaa20fc3af93a5a5d4b371fc63aae0860a618bcd"  # cimg/python:3.14.9
           filters:
             tags:
               only: /.*/
