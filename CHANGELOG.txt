@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-10-26
+### Changed
+  - Support PEP 740 attestations when publishing releases to PyPI.
+### Fixed
+  - Remove redundant `wheel` specification in `build-system.requires` (pyproject.toml).
+### Security
+  - Pin GitHub Actions to commit hashes instead of potentially mutable tags.
+  - Isolate OIDC token access from uv build step in release GitHub actions workflow.
+  - Ensure trusted publishing is available for publishing to PyPI.
+  - Upgrade to latest CircleCI cimg/python Docker images and pin to sha256 hashes.
+
 ## [2.2.0] - 2026-10-22
 ### Changed
   - Bump the minimum supported Python from 3.10 (EOL) to 3.11.
