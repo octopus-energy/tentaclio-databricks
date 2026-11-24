@@ -81,6 +81,12 @@ with DatabricksClient(url) as client:
 
 When Arrow is disabled, the client falls back to `fetchall()` and uses `arraysize` for the cursor.
 
+Pandas 2 and 3 are supported. Pandas 3 may infer different string and timestamp
+types from pandas 2; Arrow and row-based results can also have different timestamp
+precision. For an all-null string column, Arrow can return `NaN` where row-based
+fetching returns `None`; use `pandas.isna()` to check for missing values. Specify
+data types explicitly if downstream code depends on them.
+
 ### Example: Arrow enabled
 
 ```python

@@ -365,8 +365,7 @@ class TestDatabricksClient:
 
     def test_arrow_vs_legacy_types(self, mocker):
         """
-        Ensure Arrow, Arrow-fallback, and non-Arrow paths return equivalent
-        DataFrames with the same values, columns, and dtypes.
+        Check values and data types for Arrow, Arrow-fallback, and non-Arrow paths.
         """
 
         expected = pd.DataFrame(
@@ -399,9 +398,15 @@ class TestDatabricksClient:
         client_arrow.__enter__ = lambda _: client_arrow  # type: ignore
 
         mocked_cursor_arrow = mocker.MagicMock()
-        mocked_table = mocker.MagicMock()
-        mocked_table.to_pandas.return_value = expected.copy()
-        mocked_cursor_arrow.fetchall_arrow.return_value = mocked_table
+        mocked_cursor_arrow.fetchall_arrow.return_value = pa.table(
+            {
+                "id": pa.array([row[0] for row in rows], type=pa.int64()),
+                "score": pa.array([row[1] for row in rows], type=pa.float64()),
+                "flag": pa.array([row[2] for row in rows], type=pa.bool_()),
+                "event_time": pa.array([row[3] for row in rows], type=pa.timestamp("us")),
+                "note": pa.array([row[4] for row in rows], type=pa.string()),
+            }
+        )
         client_arrow.cursor = mocked_cursor_arrow
 
         df_arrow = client_arrow.get_df("SELECT * FROM foo")
@@ -438,16 +443,21 @@ class TestDatabricksClient:
         # -------------------------
         # Assertions: values
         # -------------------------
-        assert df_arrow.equals(expected)
-        assert df_arrow_fallback.equals(expected)
-        assert df_non_arrow.equals(expected)
+        for frame in (df_arrow, df_arrow_fallback, df_non_arrow):
+            pd.testing.assert_frame_equal(frame, expected, check_dtype=False)
 
         # -------------------------
         # Assertions: dtypes
         # -------------------------
-        assert df_arrow.dtypes.to_dict() == expected.dtypes.to_dict()
-        assert df_arrow_fallback.dtypes.to_dict() == expected.dtypes.to_dict()
-        assert df_non_arrow.dtypes.to_dict() == expected.dtypes.to_dict()
+        pandas_3 = int(pd.__version__.split(".")[0]) >= 3
+        assert str(df_arrow["event_time"].dtype) == "datetime64[us]"
+        assert str(df_non_arrow["event_time"].dtype) == (
+            "datetime64[us]" if pandas_3 else "datetime64[ns]"
+        )
+        assert df_arrow_fallback.dtypes.equals(df_non_arrow.dtypes)
+        expected_string_dtype = "str" if pandas_3 else "object"
+        assert str(df_arrow["note"].dtype) == expected_string_dtype
+        assert str(df_non_arrow["note"].dtype) == expected_string_dtype
 
         # -------------------------
         # Assertions: columns
@@ -455,6 +465,46 @@ class TestDatabricksClient:
         assert list(df_arrow.columns) == columns
         assert list(df_arrow_fallback.columns) == columns
         assert list(df_non_arrow.columns) == columns
+
+    def test_arrow_and_row_results_with_null_strings(self, mocker):
+        rows = [(1, "hello"), (2, None)]
+        arrow_client = self.client_arrow
+        arrow_cursor = mocker.MagicMock()
+        arrow_cursor.fetchall_arrow.return_value = pa.table(
+            {"id": [1, 2], "name": ["hello", None]}
+        )
+        arrow_client.cursor = arrow_cursor
+        row_client = self.client
+        row_cursor = mocker.MagicMock()
+        row_cursor.fetchall.return_value = rows
+        row_cursor.description = [("id", None), ("name", None)]
+        row_client.cursor = row_cursor
+
+        arrow_result = arrow_client.get_df("SELECT id, name")
+        row_result = row_client.get_df("SELECT id, name")
+
+        pd.testing.assert_frame_equal(arrow_result, row_result)
+        assert pd.isna(arrow_result.loc[1, "name"])
+
+    def test_arrow_and_row_results_with_all_null_string(self, mocker):
+        arrow_cursor = mocker.MagicMock()
+        arrow_cursor.fetchall_arrow.return_value = pa.table(
+            {"name": pa.array([None], type=pa.string())}
+        )
+        self.client_arrow.cursor = arrow_cursor
+        row_cursor = mocker.MagicMock()
+        row_cursor.fetchall.return_value = [(None,)]
+        row_cursor.description = [("name", None)]
+        self.client.cursor = row_cursor
+
+        arrow_result = self.client_arrow.get_df("SELECT name")
+        row_result = self.client.get_df("SELECT name")
+
+        assert pd.isna(arrow_result.loc[0, "name"])
+        assert row_result.loc[0, "name"] is None
+        pandas_3 = int(pd.__version__.split(".")[0]) >= 3
+        assert str(arrow_result["name"].dtype) == ("str" if pandas_3 else "object")
+        assert str(row_result["name"].dtype) == "object"
 
     def test_comprehensive_types_arrow_vs_legacy(self, mocker):
         """
@@ -656,7 +706,9 @@ class TestDatabricksClient:
             # For timestamp columns
             elif col == "timestamp_col":
                 pd.testing.assert_series_equal(df_arrow[col], expected[col], check_names=True)
-                pd.testing.assert_series_equal(df_non_arrow[col], expected[col], check_names=True)
+                pd.testing.assert_series_equal(
+                    df_non_arrow[col], expected[col], check_names=True, check_dtype=False
+                )
 
             # For other columns, check equality element by element
             else:

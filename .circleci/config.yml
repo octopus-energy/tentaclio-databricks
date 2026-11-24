@@ -106,6 +106,16 @@ jobs:
           name: Run Python unit tests
           command: make tests
 
+  tests-pandas-2:
+    executor: standard
+    steps:
+      - checkout_source
+      - update_virtualenv:
+          python-version: *default-python
+      - run:
+          name: Run Python unit tests with pandas 2
+          command: uv run --locked --all-extras --with 'pandas>=2,<3' pytest -s -v
+
 
 workflows:
   version: 2
@@ -141,6 +151,10 @@ workflows:
           name: tests-3.14
           python-version: &python314 "3.14.9"
           sha256-digest: &sha256-python314 "sha256:55b4b277ea43a3cecad39964aaa20fc3af93a5a5d4b371fc63aae0860a618bcd"  # cimg/python:3.14.9
+          filters:
+            tags:
+              only: /.*/
+      - tests-pandas-2:
           filters:
             tags:
               only: /.*/
